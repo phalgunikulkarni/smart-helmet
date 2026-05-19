@@ -7,7 +7,7 @@ import cv2
 import platform
 import time
 
-SIMULATED = platform.system() == "Windows"
+SIMULATED = platform.system() != "Linux"
 
 # ── Settings ──────────────────────────────────────────────
 CAMERA_INDEX    = 0      # 0 = default webcam on laptop

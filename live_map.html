@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+    <title>Smart Helmet Live Map</title>
+
+<meta charset="utf-8" />
+
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0">
+
+<!-- Leaflet CSS -->
+<link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet/dist/leaflet.css"
+/>
+
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+    }
+
+    #map {
+        height: 100vh;
+        width: 100%;
+    }
+</style>
+
+</head>
+
+<body>
+
+<div id="map"></div>
+
+<!-- Leaflet JS -->
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+
+// --------------------------------------------------
+// CREATE BENGALURU MAP
+// --------------------------------------------------
+
+var southWest = L.latLng(12.80, 77.45);
+var northEast = L.latLng(13.15, 77.80);
+
+var bounds = L.latLngBounds(southWest, northEast);
+
+// --------------------------------------------------
+// CREATE MAP
+// --------------------------------------------------
+
+var map = L.map('map', {
+    maxBounds: bounds,
+    maxBoundsViscosity: 1.0
+}).setView([12.9716, 77.5946], 11);
+
+// ═══════════════════════════════════════════════
+// LIVE RIDER MARKER
+// ═══════════════════════════════════════════════
+
+let riderMarker = L.circleMarker(
+
+    [12.9716, 77.5946],
+
+    {
+        radius: 18,
+        color: "green",
+        fillColor: "green",
+        fillOpacity: 1
+    }
+
+).addTo(map);
+
+// --------------------------------------------------
+// LOAD OPENSTREETMAP
+// --------------------------------------------------
+
+L.tileLayer(
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {
+        attribution: '© OpenStreetMap contributors'
+    }
+).addTo(map);
+
+// --------------------------------------------------
+// DARK OUTSIDE AREA
+// --------------------------------------------------
+
+var outerBounds = [
+    [-90, -180],
+    [-90, 180],
+    [90, 180],
+    [90, -180]
+];
+
+var innerBounds = [
+    [12.80, 77.45],
+    [12.80, 77.80],
+    [13.15, 77.80],
+    [13.15, 77.45]
+];
+
+L.polygon(
+    [outerBounds, innerBounds],
+    {
+        color: 'black',
+        fillColor: 'black',
+        fillOpacity: 0.6,
+        stroke: false
+    }
+).addTo(map);
+
+// --------------------------------------------------
+// ACTIVE SPEED LIMIT
+// --------------------------------------------------
+
+let currentSpeedLimit = null;
+
+// Store all checkpoints
+let speedCheckpoints = [];
+
+// ═══════════════════════════════════════════════
+// LOAD SPEED ROADS + DRAW ROADS
+// ═══════════════════════════════════════════════
+
+fetch("http://127.0.0.1:5050/speed_roads")
+
+.then(response => response.json())
+
+.then(async data => {
+
+    console.log(
+        "Speed roads loaded:",
+        data.length
+    );
+
+    let roadGroups = {};
+
+    // --------------------------------------------------
+    // CREATE RED CHECKPOINTS
+    // --------------------------------------------------
+
+    data.forEach(road => {
+
+        let lat = parseFloat(
+            road["Latitude"]
+        );
+
+        let lon = parseFloat(
+            road["Longitude"]
+        );
+
+        let speed =
+            road["Speed Limit"];
+
+        let roadName =
+            road["Road Name"];
+
+        if (
+            isNaN(lat) ||
+            isNaN(lon)
+        ) {
+            return;
+        }
+
+        // STORE ROAD GROUP
+
+        if (!roadGroups[roadName]) {
+
+            roadGroups[roadName] = [];
+
+        }
+
+        roadGroups[roadName].push([
+
+            lat,
+            lon
+
+        ]);
+
+        // RED DOTS
+
+        L.circleMarker(
+
+            [lat, lon],
+
+            {
+
+                radius: 4,
+                color: "Yellow",
+                fillColor: "Yellow",
+                fillOpacity: 1
+
+            }
+
+        )
+
+        .addTo(map)
+
+        .bindPopup(
+
+            `
+            <b>${roadName}</b><br>
+            Speed Limit: ${speed} km/h
+            `
+
+        );
+
+    });
+
+    // --------------------------------------------------
+    // DRAW BLUE ROAD PATHS
+    // --------------------------------------------------
+
+    for (let roadName in roadGroups) {
+
+        let points =
+            roadGroups[roadName];
+
+        if (points.length < 2)
+            continue;
+
+        // SORT POINTS
+
+        points.sort((a, b) => {
+
+            return a[0] - b[0];
+
+        });
+
+        // CONNECT NEXT POINT ONLY
+
+        for (
+            let i = 0;
+            i < points.length - 1;
+            i++
+        ) {
+
+            let p1 = points[i];
+            let p2 = points[i + 1];
+
+            let latDiff =
+                Math.abs(
+                    p1[0] - p2[0]
+                );
+
+            let lonDiff =
+                Math.abs(
+                    p1[1] - p2[1]
+                );
+
+            // PREVENT CRAZY LINES
+
+            if (
+                latDiff > 0.02 ||
+                lonDiff > 0.02
+            ) {
+                continue;
+            }
+
+            try {
+
+                let url =
+
+                    `https://router.project-osrm.org/route/v1/driving/`
+
+                    +
+
+                    `${p1[1]},${p1[0]};`
+
+                    +
+
+                    `${p2[1]},${p2[0]}`
+
+                    +
+
+                    `?overview=full&geometries=geojson`;
+
+                let routeResponse =
+                    await fetch(url);
+
+                let routeData =
+                    await routeResponse.json();
+
+                if (
+                    !routeData.routes ||
+                    routeData.routes.length === 0
+                ) {
+                    continue;
+                }
+
+                let coords =
+                    routeData.routes[0]
+                    .geometry
+                    .coordinates;
+
+                let latLngs = coords.map(c => [
+
+                    c[1],
+                    c[0]
+
+                ]);
+
+                L.polyline(
+
+                    latLngs,
+
+                    {
+
+                        color: "blue",
+                        weight: 3
+
+                    }
+
+                ).addTo(map);
+
+            }
+
+            catch (err) {
+
+                console.log(
+                    "Route failed",
+                    err
+                );
+
+            }
+
+        }
+
+    }
+
+})
+
+.catch(error => {
+
+    console.log(
+        "Road rendering failed:",
+        error
+    );
+
+});
+// ═══════════════════════════════════════════════
+// LIVE RIDER TRACKING
+// ═══════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════
+// LIVE RIDER TRACKING
+// ═══════════════════════════════════════════════
+
+let previousLat = null;
+let previousLon = null;
+
+async function updateRiderMarker() {
+
+    try {
+
+        const response = await fetch(
+
+            "http://127.0.0.1:5050/live_rider"
+
+        );
+
+        const data = await response.json();
+
+        // ------------------------------------------------
+        // VALIDATE COORDINATES
+        // ------------------------------------------------
+
+        if (
+
+            data.lat === undefined ||
+            data.lon === undefined
+
+        ) {
+
+            return;
+
+        }
+
+        // ------------------------------------------------
+        // MOVE MARKER
+        // ------------------------------------------------
+
+        riderMarker.setLatLng([
+
+            data.lat,
+            data.lon
+
+        ]);
+
+        riderMarker.bringToFront();
+
+        
+
+        // ------------------------------------------------
+        // CENTER MAP SMOOTHLY
+        // ------------------------------------------------
+
+        map.panTo(
+
+            [
+
+                data.lat,
+                data.lon
+
+            ],
+
+            {
+
+                animate: true,
+                duration: 0.4
+
+            }
+
+        );
+
+        // ------------------------------------------------
+        // CHANGE COLOR
+        // ------------------------------------------------
+
+        if (data.status === "warning") {
+
+    riderMarker.setStyle({
+
+        color: "#ff0000",
+        fillColor: "#ff0000",
+        radius: 12
+
+    });
+
+}
+
+else {
+
+    riderMarker.setStyle({
+
+        color: "#00ff00",
+
+        fillColor: "#00ff00",
+
+        fillOpacity: 1,
+
+        radius: 18,
+
+        weight: 5
+
+    });
+
+}
+
+        // ------------------------------------------------
+        // POPUP
+        // ------------------------------------------------
+
+        riderMarker.bindPopup(
+
+            `
+            <b>Road:</b> ${data.road}<br>
+            <b>Speed:</b> ${data.speed} km/h<br>
+            <b>Limit:</b> ${data.limit} km/h<br>
+            <b>Status:</b> ${data.status}
+            `
+
+        );
+
+        // ------------------------------------------------
+        // SAVE PREVIOUS
+        // ------------------------------------------------
+
+        previousLat = data.lat;
+        previousLon = data.lon;
+
+    }
+
+    catch (err) {
+
+        console.log(
+
+            "Live rider fetch failed",
+
+            err
+
+        );
+
+    }
+
+}
+
+// ═══════════════════════════════════════════════
+// AUTO UPDATE
+// ═══════════════════════════════════════════════
+
+setInterval(
+
+    updateRiderMarker,
+
+    2000
+
+);
+</script>
+
+</body>
+</html>

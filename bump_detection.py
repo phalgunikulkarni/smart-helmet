@@ -8,7 +8,7 @@ import time
 import random
 
 # Import real or mock smbus2 based on OS
-if platform.system() == "Windows":
+if platform.system() != "Linux":
     from smbus2_mock import SMBus
     SIMULATED = True
 else:

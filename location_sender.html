@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+    <title>Smart Helmet Location Sender</title>
+</head>
+<body>
+
+<h1>📍 Sending Live Location...</h1>
+
+<script>
+function sendLocation(position) {
+
+    const data = {
+        lat: position.coords.latitude,
+        lon: position.coords.longitude
+    };
+
+    console.log("Sending:", data);
+
+    fetch('http://127.0.0.1:5050/location', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        console.log("Server response:", result);
+    });
+}
+
+function errorHandler(error) {
+    console.log("Location error:", error);
+}
+
+navigator.geolocation.watchPosition(
+    sendLocation,
+    errorHandler,
+    {
+        enableHighAccuracy: true
+    }
+);
+</script>
+
+</body>
+</html>
+ç

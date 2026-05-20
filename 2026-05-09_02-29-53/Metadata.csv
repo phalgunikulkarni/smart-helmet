@@ -1,0 +1,2 @@
+version,device name,recording epoch time,recording time,recording timezone,platform,appVersion,device id,sensors,sampleRateMs,standardisation,platform version
+3,2312DRAABI,1778293793509,2026-05-09_02-29-53,Asia/Kolkata,android,1.58.0,80b0b530-42c0-4f6a-a2ad-dc5c2ef7673b,Accelerometer|Gravity|Gyroscope|Orientation|Magnetometer|Compass|Location|Annotation|TotalAcceleration|MagnetometerUncalibrated|GyroscopeUncalibrated|AccelerometerUncalibrated,10|10|10|10|10|10|0||10|10|10|10,false,35

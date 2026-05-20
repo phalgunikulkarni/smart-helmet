@@ -3,7 +3,8 @@
 # Combines bump detection, GPS zone, rear camera, and heuristic curve analysis
 # REAL DATA MODE: Loads actual CSV sensor data instead of simulation
 # Built with Tkinter
-
+import webbrowser
+import os
 import tkinter as tk
 from tkinter import font
 import threading
@@ -50,6 +51,7 @@ def load_csv_data():
 #  Dashboard App
 # ══════════════════════════════════════════════════════════
 class SmartHelmetDashboard:
+
     def __init__(self, root):
         self.root = root
         self.root.title("Smart Helmet Dashboard - Advanced Heuristic Analysis")
@@ -169,6 +171,19 @@ class SmartHelmetDashboard:
         )
         self.speed_label.pack(pady=2)
 
+        map_button = tk.Button(
+            self.zone_card,
+            text="🌍 OPEN LIVE MAP",
+            bg="#00aa88",
+            fg="white",
+            font=("Helvetica", 10, "bold"),
+            relief="flat",
+            padx=10,
+            pady=5,
+            command=self.open_map
+        )
+
+        map_button.pack(pady=5)
         # Obstacle card
         self.obstacle_card = self.make_card(top_frame, "📷  Rear Camera")
         self.obstacle_card.pack(side="left", expand=True, fill="both", padx=5)
@@ -266,6 +281,14 @@ class SmartHelmetDashboard:
         self.log_box.see("end")
         self.log_box.configure(state="disabled")
 
+    def open_map(self):
+        """Open live map in browser"""
+
+        path = os.path.abspath("live_map.html")
+
+        webbrowser.open(
+            f"file://{path}"
+        )
     # ── Alert bar ─────────────────────────────────────────
     def set_alert(self, message, color="#0f3460"):
         self.alert_var.set(f"  {message}")
@@ -336,7 +359,7 @@ class SmartHelmetDashboard:
                 )
                 )
                 # Update UI with bump detection
-                self.bump_magnitude = cv2.magnitude
+                self.bump_magnitude = magnitude
                 self.root.after(0, self.update_bump_ui, True, magnitude)
                 
                 # Calculate vibration duration

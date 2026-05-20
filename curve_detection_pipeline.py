@@ -19,6 +19,100 @@ import glob
 from scipy.signal import find_peaks
 
 detected_anomalies_list = []
+def calculate_curve_features(df):
+    """
+    Calculate heuristic curve features
+    """
+
+    features = {}
+
+    features['rise_rate'] = df['absolute_spike'].diff().max()
+
+    features['fall_rate'] = abs(df['absolute_spike'].diff().min())
+
+    features['curve_skewness'] = (
+        df['absolute_spike'].skew()
+        if len(df) > 2 else 0
+    )
+
+    features['curve_variance'] = (
+        df['absolute_spike'].var()
+        if len(df) > 1 else 0
+    )
+
+    gyro_x = df['gyro_x'].abs().mean()
+    gyro_y = df['gyro_y'].abs().mean()
+    gyro_z = df['gyro_z'].abs().mean()
+
+    features['gyro_magnitude'] = (
+        gyro_x + gyro_y + gyro_z
+    )
+
+    features['z_component'] = (
+        df['accel_z'].abs().max()
+    )
+
+    features['num_local_peaks'] = (
+        (df['absolute_spike'] > 2.0).sum()
+    )
+
+    return features
+def classify_anomaly(peak_height, elevated_duration, features):
+    """
+    Heuristic anomaly classification
+    """
+
+    rise_rate = features['rise_rate']
+    fall_rate = features['fall_rate']
+    curve_skewness = features['curve_skewness']
+    gyro_magnitude = features['gyro_magnitude']
+    z_component_spike = features['z_component']
+    num_local_peaks = features['num_local_peaks']
+
+    pothole_score = (
+        (peak_height * 0.3) +
+        ((25 - elevated_duration) * 0.2) +
+        (abs(curve_skewness) * 0.2) +
+        (z_component_spike * 0.15)
+    )
+
+    speed_bump_score = (
+        (peak_height * 0.25) +
+        ((elevated_duration - 5) * 0.25) +
+        ((1 - abs(curve_skewness)) * 0.25)
+    )
+
+    anomaly_class = "Smooth road"
+    confidence_score = 0.85
+
+    if pothole_score > speed_bump_score and pothole_score > 2.0:
+
+        if peak_height >= 4.5 and elevated_duration < 10:
+
+            anomaly_class = "Pothole"
+
+            confidence_score = min(
+                pothole_score / 5.0,
+                1.0
+            )
+
+    elif speed_bump_score > 2.2:
+
+        if peak_height >= 2.0 and elevated_duration >= 8:
+
+            anomaly_class = "Speed bump"
+
+            confidence_score = min(
+                speed_bump_score / 5.0,
+                1.0
+            )
+
+    return (
+        anomaly_class,
+        confidence_score,
+        pothole_score,
+        speed_bump_score
+    )
 
 def process_session_curves(folder_path):
     """
